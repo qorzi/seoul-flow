@@ -1,70 +1,131 @@
-# Getting Started with Create React App
+# 서울시 경로 생성 및 더미 이동 시뮬레이터
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+서울시를 기준으로 다양한 경로를 생성하고, 더미들이 해당 경로를 따라 이동하는 시뮬레이션을 제공하는 React 애플리케이션입니다.
 
-## Available Scripts
+## 주요 기능
 
-In the project directory, you can run:
+### 🗺️ 경로 생성
+- **이동 속도 범위 설정**: 최소/최대 이동 속도를 설정하여 더미들의 속도를 랜덤하게 생성
+- **겹침 비율 설정**: 경로 간 겹치는 구간의 비율을 조정 가능
+- **경로 수 설정**: 생성할 경로의 개수 설정 (1-10개)
+- **경로 유형 선택**: 5가지 다양한 경로 패턴 제공
+  - 랜덤: 무작위 중간점을 통과하는 경로
+  - 지그재그: 지그재그 패턴으로 이동하는 경로
+  - 원형: 원형 패턴으로 이동하는 경로
+  - 나선형: 나선형 패턴으로 이동하는 경로
+  - 격자형: 격자 패턴으로 이동하는 경로
 
-### `npm start`
+### 🚶 더미 이동 시뮬레이션
+- **실시간 이동**: 더미들이 설정된 속도로 경로를 따라 실시간 이동
+- **진행률 표시**: 각 더미의 경로 진행률을 시각적으로 표시
+- **상태 모니터링**: 이동 중/완료 상태를 실시간으로 확인
+- **서버 전송**: 더미들의 현재 위치와 속도를 서버로 전송 (콘솔 출력)
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+### 🗺️ 지도 시각화
+- **서울시 중심**: 서울시를 중심으로 한 지도 표시
+- **경기도 포함**: 편의를 위해 경기도 일부 지역까지 표시
+- **확대/축소 제한**: 지도 범위를 서울시 주변으로 제한
+- **다양한 마커**: 시작점(녹색), 종료점(빨간색), 더미(색상별) 마커 표시
+- **팝업 정보**: 각 마커 클릭 시 상세 정보 표시
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+### 📊 더미 정보 테이블
+- **실시간 업데이트**: 더미들의 현재 상태를 실시간으로 표시
+- **진행률 바**: 시각적인 진행률 표시
+- **요약 정보**: 전체 더미들의 통계 정보 제공
 
-### `npm test`
+## 기술 스택
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+- **React 19**: 사용자 인터페이스 구축
+- **Leaflet**: 지도 시각화
+- **React-Leaflet**: React용 Leaflet 래퍼
+- **Turf.js**: 지리공간 분석 및 계산
+- **UUID**: 고유 식별자 생성
 
-### `npm run build`
+## 설치 및 실행
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+### 필수 요구사항
+- Node.js 16.0 이상
+- npm 또는 yarn
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+### 설치
+```bash
+# 의존성 설치
+npm install
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+# 개발 서버 실행
+npm start
+```
 
-### `npm run eject`
+### 빌드
+```bash
+# 프로덕션 빌드
+npm run build
+```
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+## 사용 방법
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+1. **경로 생성 설정**
+   - 이동 속도 범위 설정 (0.001-0.01 도/초)
+   - 겹침 비율 설정 (0-1)
+   - 경로 수 설정 (1-10개)
+   - 경로 유형 선택 (랜덤, 지그재그, 원형, 나선형, 격자형)
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+2. **경로 생성**
+   - "경로 생성" 버튼을 클릭하여 설정에 따라 경로 생성
+   - 지도에 경로와 시작점/종료점 마커가 표시됨
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+3. **시뮬레이션 실행**
+   - "시뮬레이션 시작" 버튼을 클릭하여 더미 이동 시작
+   - 더미들이 설정된 속도로 경로를 따라 이동
+   - 실시간으로 위치와 상태가 업데이트됨
 
-## Learn More
+4. **모니터링**
+   - 지도에서 더미들의 이동을 실시간으로 관찰
+   - 왼쪽 패널의 테이블에서 상세 정보 확인
+   - 각 더미의 진행률과 상태를 실시간으로 확인
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+5. **제어**
+   - "시뮬레이션 정지" 버튼으로 이동 일시정지
+   - "초기화" 버튼으로 모든 데이터 초기화
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+## 프로젝트 구조
 
-### Code Splitting
+```
+src/
+├── components/
+│   ├── RouteGenerator.js    # 경로 생성 설정 컴포넌트
+│   ├── MapView.js          # 지도 표시 컴포넌트
+│   └── DummyTable.js       # 더미 정보 테이블 컴포넌트
+├── App.js                  # 메인 애플리케이션 컴포넌트
+├── App.css                 # 애플리케이션 스타일
+└── index.css               # 전역 스타일
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+## 서버 연동
 
-### Analyzing the Bundle Size
+현재는 더미 정보가 콘솔에 출력되도록 구현되어 있습니다. 실제 서버와 연동하려면 `App.js`의 `useEffect` 부분을 수정하여 실제 API 엔드포인트로 데이터를 전송하도록 변경하세요.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+```javascript
+// 서버로 더미 정보 전송 예시
+useEffect(() => {
+  if (dummies.length > 0) {
+    // 실제 서버 엔드포인트로 변경
+    fetch('/api/dummies/update', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(dummies.map(dummy => ({
+        id: dummy.id,
+        position: dummy.position,
+        speed: dummy.speed,
+        routeId: dummy.routeId
+      })))
+    });
+  }
+}, [dummies]);
+```
 
-### Making a Progressive Web App
+## 라이선스
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+이 프로젝트는 MIT 라이선스 하에 배포됩니다.
