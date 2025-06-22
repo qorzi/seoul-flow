@@ -1,0 +1,14 @@
+spring:
+  application:
+    name: seoul-flow
+
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
+
+kafka-topics:
+  user-location-topic: "user-location-updates"

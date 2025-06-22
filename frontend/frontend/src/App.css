@@ -1,0 +1,269 @@
+/* --- General App Styles --- */
+.App {
+  text-align: center;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+}
+
+.App-header {
+  background-color: #282c34;
+  padding: 15px;
+  color: white;
+  flex-shrink: 0;
+}
+
+.App-header h1 {
+  margin: 0;
+  font-size: 1.6rem;
+}
+
+.main-container {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* --- Panels --- */
+.left-panel {
+  width: 450px;
+  max-width: 40%;
+  background-color: #f8f9fa;
+  border-right: 1px solid #dee2e6;
+  display: flex;
+  flex-direction: column;
+  padding: 15px;
+  gap: 15px;
+  overflow: hidden; 
+}
+
+.right-panel {
+  flex: 1;
+  position: relative;
+}
+
+/* --- RouteGenerator Component (Accordion Style) --- */
+.route-generator {
+  padding: 0;
+  background-color: white;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  overflow: hidden;
+  transition: all 0.4s ease-in-out;
+  flex-shrink: 0;
+}
+
+.generator-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.generator-header h2 {
+  margin: 0;
+  font-size: 1.4rem;
+  color: #343a40;
+}
+
+.toggle-icon {
+  font-size: 1.2rem;
+  color: #6c757d;
+  transition: transform 0.3s;
+}
+
+.route-generator.is-closed .toggle-icon {
+  transform: rotate(-180deg);
+}
+
+.generator-content {
+  padding: 0 20px 20px 20px;
+  animation: fadeIn 0.5s;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.form-group {
+  margin-bottom: 15px;
+  text-align: left;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: bold;
+  color: #495057;
+}
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+/* --- Help Tooltip (수정) --- */
+.help-tooltip {
+  position: relative;
+  display: inline-block;
+  cursor: help;
+  background-color: #6c757d;
+  color: white;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  text-align: center;
+  line-height: 18px;
+  font-weight: bold;
+  font-size: 12px;
+  user-select: none;
+}
+
+.help-tooltip:hover::after {
+  content: attr(data-title);
+  position: absolute;
+  /* 툴팁 위치를 위쪽이 아닌 오른쪽으로 변경 */
+  top: 50%;
+  left: calc(100% + 10px); /* 아이콘 오른쪽 10px 옆에 표시 */
+  transform: translateY(-50%); /* 세로 중앙 정렬 */
+  z-index: 10;
+  background-color: #343a40;
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  white-space: pre-wrap;
+  width: 280px;
+  text-align: left;
+  line-height: 1.5;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  pointer-events: none;
+}
+
+/* --- Buttons --- */
+.button-group {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.btn {
+  padding: 12px 20px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+}
+.btn:hover:not(:disabled) {
+  opacity: 0.8;
+  transform: translateY(-1px);
+}
+.btn:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.btn-primary { background-color: #007bff; color: white; }
+.btn-success { background-color: #28a745; color: white; }
+.btn-warning { background-color: #ffc107; color: #212529; }
+.btn-danger { background-color: #dc3545; color: white; }
+.btn-reset { grid-column: 1 / -1; background-color: #343a40; color: white; margin-top: 10px;}
+
+/* --- DummyTable Component --- */
+.dummy-table-container {
+  flex: 1; 
+  min-height: 0;
+  padding: 20px;
+  background-color: white;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  overflow-y: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.dummy-table-container h3 {
+  margin-top: 0;
+  color: #343a40;
+  font-size: 1.4rem;
+  border-bottom: 2px solid #28a745;
+  padding-bottom: 10px;
+  margin-bottom: 20px;
+  flex-shrink: 0;
+}
+
+.table-wrapper {
+  overflow-y: auto; 
+  flex-grow: 1;
+}
+
+.dummy-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.dummy-table th,
+.dummy-table td {
+  padding: 12px 8px;
+  text-align: left;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.dummy-table th {
+  background-color: #f8f9fa;
+  font-weight: bold;
+  color: #495057;
+  position: sticky;
+  top: 0;
+}
+
+.status-completed { color: #28a745; font-weight: bold; }
+.status-moving { color: #007bff; font-weight: bold; }
+.status-waiting { color: #6c757d; font-weight: bold; }
+.status-paused { color: #ffc107; font-weight: bold; }
+
+/* --- Map & Leaflet specific styles --- */
+.leaflet-container { 
+  height: 100%; 
+  width: 100%; 
+  border-radius: 8px;
+}
+.custom-dummy-marker, .start-marker, .end-marker, .corner-marker { 
+  background: transparent; 
+  border: none; 
+}
+.corner-marker:hover { 
+  transform: scale(1.2); 
+  transition: transform 0.2s ease; 
+}
+
+/* Responsive Design */
+@media (max-width: 992px) {
+  .main-container {
+    flex-direction: column;
+  }
+  .left-panel {
+    width: 100%;
+    max-width: 100%;
+    height: 50vh; 
+    border-right: none;
+    border-bottom: 1px solid #dee2e6;
+  }
+}

@@ -1,0 +1,40 @@
+# docker-compose.prod.yml (FOR PRODUCTION DEPLOYMENT)
+version: '3.8'
+
+services:
+  zookeeper:
+    restart: unless-stopped # 서버 재부팅 또는 비정상 종료 시 자동 재시작
+
+  kafka:
+    restart: unless-stopped
+    # 배포 환경에서는 외부 PC 접속이 필요 없으므로 포트를 열지 않을 수 있습니다.
+    # ports:
+    #   - "9092:9092" 
+    environment:
+      # 배포 환경에서는 컨테이너 간 통신만 필요
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+
+  akhq:
+    restart: unless-stopped
+    ports:
+      - "8088:8080" # 관리자만 접속할 수 있도록 IP 제한 등을 웹서버에서 설정
+    environment:
+      AKHQ_CONFIGURATION: |
+        akhq:
+          connections:
+            docker-kafka-cluster:
+              properties:
+                bootstrap.servers: "kafka:9092"
+
+  # 배포 시에는 backend 서비스도 도커로 함께 실행됩니다.
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      - kafka
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      # 배포용 DB 접속 정보 등은 prod.env 파일이나 다른 secret 관리 도구를 통해 주입
+    networks:
+      - seoul-flow-net
