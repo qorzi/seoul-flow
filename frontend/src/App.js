@@ -24,14 +24,29 @@ function App() {
 
     // 더미 데이터를 서버로 전송하는 함수 (최대 1초마다 한 번씩 호출)
     const sendDummyDataToServer = useThrottle((dummiesData) => {
-        if (!dummiesData || dummiesData.length === 0) return;
-        // 각 더미에 대해 서버로 데이터 전송
-        dummiesData.forEach(dummy => {
-            if (dummy.isCompleted || !dummy.position) return;
-            const payload = { id: dummy.id, position: dummy.position, speed_mps: dummy.speed };
-            console.log(`[API Call] Sending data for Dummy ID: ${dummy.id}`, payload);
-        });
-    }, 1000);
+      if (!dummiesData || dummiesData.length === 0) return;
+
+      // 이동 중인 각 더미에 대해 개별적으로 API 호출
+      dummiesData.forEach(dummy => {
+          if (dummy.isCompleted || !dummy.position) return; // 완료되었거나 위치가 없으면 전송 안함
+
+          // 전송할 데이터(payload)에 timestamp 추가
+          const payload = {
+              id: dummy.id, // 더미(사용자)의 고유 ID
+              timestamp: new Date().toISOString(), // 현재 시간을 ISO 형식의 문자열로 추가
+              position: dummy.position,
+              speed_mps: dummy.speed,
+          };
+
+          console.log(`[API Call] Sending data for Dummy ID: ${dummy.id}`, payload);
+          // TODO: 실제 API 호출 로직 추가
+          // fetch(`/api/dummy/${dummy.id}/update`, {
+          //   method: 'POST',
+          //   headers: { 'Content-Type': 'application/json' },
+          //   body: JSON.stringify(payload),
+          // }).catch(err => console.error(`API 전송 실패 (ID: ${dummy.id}):`, err));
+      });
+  }, 1000);
 
     // 매 프레임마다 호출되는 핵심 애니메이션 루프
     const animate = useCallback((time) => {
