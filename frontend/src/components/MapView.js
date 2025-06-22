@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useMemo } from 'react';
 import { MapContainer, TileLayer, Polyline, Marker, Popup, Rectangle } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { calculatePosition } from '../utils/pathUtils'; // 유틸리티 함수 import
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -10,47 +11,9 @@ L.Icon.Default.mergeOptions({
     shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 });
 
-//--- 위치 계산 함수 (App.js와 동일한 로직) ---
-const lerp = (a, b, t) => a + (b - a) * t;
-
-const calculatePosition = (route, progress) => {
-    const { startPoint, endPoint, type } = route;
-    if (progress >= 1) return endPoint;
-    if (progress <= 0) return startPoint;
-
-    const [lon1, lat1] = startPoint;
-    const [lon2, lat2] = endPoint;
-
-    const currentLon = lerp(lon1, lon2, progress);
-    const currentLat = lerp(lat1, lat2, progress);
-
-    switch (type) {
-        case 'arc': {
-            const arcHeight = (lon2 - lon1) * 0.2;
-            const latOffset = arcHeight * Math.sin(Math.PI * progress);
-            return [currentLon, currentLat + latOffset];
-        }
-        case 'zigzag': {
-            const numZigzags = 5;
-            const perpendicularAngle = Math.atan2(lat2 - lat1, lon2 - lon1) + Math.PI / 2;
-            const zigzagMagnitude = Math.sqrt(Math.pow(lon2-lon1, 2) + Math.pow(lat2-lat1, 2)) * 0.05;
-            const offset = Math.sin(progress * Math.PI * (2 * numZigzags)) * zigzagMagnitude;
-            
-            const lonOffset = Math.cos(perpendicularAngle) * offset;
-            const latOffset = Math.sin(perpendicularAngle) * offset;
-            
-            return [currentLon + lonOffset, currentLat + latOffset];
-        }
-        case 'linear':
-        default: {
-             return [currentLon, currentLat];
-        }
-    }
-};
-
 const getPathPoints = (route) => {
     const points = [];
-    const numPoints = 50; 
+    const numPoints = 100; // 경로를 그릴 때 사용할 점의 개수
     for (let i = 0; i <= numPoints; i++) {
         const progress = i / numPoints;
         const position = calculatePosition(route, progress);
@@ -107,8 +70,8 @@ const MapView = ({ routes, dummies, currentBounds, isRouteGenerated }) => {
 
             {routes.map((route, index) => {
                  const pathPoints = getPathPoints(route).map(toLatLng).filter(p => p);
-                 const startPos = toLatLng(route.startPoint);
-                 const endPos = toLatLng(route.endPoint);
+                 const startPos = toLatLng(route.waypoints[0]);
+                 const endPos = toLatLng(route.waypoints[route.waypoints.length - 1]);
                  return (
                     <React.Fragment key={route.id}>
                         <Polyline positions={pathPoints} color={routeColors[index % routeColors.length]} weight={4} opacity={0.7} />

@@ -21,26 +21,27 @@ const DummyTable = ({ dummies, simulationState }) => {
               <th>ID</th>
               <th>상태</th>
               <th>속도(km/h)</th>
+              <th>총 거리(km)</th>
               <th>진행률(%)</th>
             </tr>
           </thead>
           <tbody>
             {dummies.length > 0 ? dummies.map((dummy, index) => {
               const status = getStatus(dummy);
-              // 진행률 계산: dummy.distanceTraveled와 dummy.totalDistance를 사용합니다.
               const progress = dummy.totalDistance > 0 ? ((dummy.distanceTraveled / dummy.totalDistance) * 100).toFixed(1) : 0;
               return (
                 <tr key={dummy.id}>
                   <td>{`더미 ${index + 1}`}</td>
                   <td className={status.className}>{status.text}</td>
-                  {/* 속도 표시: dummy.route.speed가 아닌 dummy.speed를 사용하도록 수정 */}
                   <td>{(dummy.speed * 3.6).toFixed(2)}</td>
+                  {/* 총 거리를 km 단위로 표시 */}
+                  <td>{(dummy.totalDistance / 1000).toFixed(2)}</td>
                   <td>{progress > 100 ? 100 : progress}%</td>
                 </tr>
               );
             }) : (
               <tr>
-                <td colSpan="4" style={{ textAlign: 'center', padding: '20px' }}>경로를 생성해주세요.</td>
+                <td colSpan="5" style={{ textAlign: 'center', padding: '20px' }}>경로를 생성해주세요.</td>
               </tr>
             )}
           </tbody>

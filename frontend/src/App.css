@@ -53,7 +53,7 @@
   border-radius: 8px;
   overflow: hidden;
   transition: all 0.4s ease-in-out;
-  flex-shrink: 0; /* Let it determine its own size based on content */
+  flex-shrink: 0;
 }
 
 .generator-header {
@@ -62,7 +62,7 @@
   align-items: center;
   padding: 20px;
   cursor: pointer;
-  user-select: none; /* Prevent text selection on click */
+  user-select: none;
 }
 
 .generator-header h2 {
@@ -83,7 +83,6 @@
 
 .generator-content {
   padding: 0 20px 20px 20px;
-  /* Smooth animation for showing/hiding content */
   animation: fadeIn 0.5s;
 }
 
@@ -114,6 +113,45 @@
   box-sizing: border-box;
 }
 
+/* --- Help Tooltip (수정) --- */
+.help-tooltip {
+  position: relative;
+  display: inline-block;
+  cursor: help;
+  background-color: #6c757d;
+  color: white;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  text-align: center;
+  line-height: 18px;
+  font-weight: bold;
+  font-size: 12px;
+  user-select: none;
+}
+
+.help-tooltip:hover::after {
+  content: attr(data-title);
+  position: absolute;
+  /* 툴팁 위치를 위쪽이 아닌 오른쪽으로 변경 */
+  top: 50%;
+  left: calc(100% + 10px); /* 아이콘 오른쪽 10px 옆에 표시 */
+  transform: translateY(-50%); /* 세로 중앙 정렬 */
+  z-index: 10;
+  background-color: #343a40;
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  white-space: pre-wrap;
+  width: 280px;
+  text-align: left;
+  line-height: 1.5;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  pointer-events: none;
+}
+
+/* --- Buttons --- */
 .button-group {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -146,7 +184,6 @@
 .btn-warning { background-color: #ffc107; color: #212529; }
 .btn-danger { background-color: #dc3545; color: white; }
 .btn-reset { grid-column: 1 / -1; background-color: #343a40; color: white; margin-top: 10px;}
-
 
 /* --- DummyTable Component --- */
 .dummy-table-container {

@@ -5,92 +5,58 @@ import RouteGenerator from './components/RouteGenerator';
 import MapView from './components/MapView';
 import DummyTable from './components/DummyTable';
 import { useThrottle } from './utils/useThrottle';
-
-//--- 위치 계산 함수 (turf.js 비의존) ---
-const lerp = (a, b, t) => a + (b - a) * t;
-
-const calculatePosition = (route, progress) => {
-    const { startPoint, endPoint, type } = route;
-    if (progress >= 1) return endPoint;
-    if (progress <= 0) return startPoint;
-
-    const [lon1, lat1] = startPoint;
-    const [lon2, lat2] = endPoint;
-
-    // 직선 이동 (Linear Interpolation)
-    const currentLon = lerp(lon1, lon2, progress);
-    const currentLat = lerp(lat1, lat2, progress);
-
-    switch (type) {
-        case 'arc': {
-            // 포물선 형태의 호(arc)를 만들기 위해 위도에 offset 추가
-            const arcHeight = (lon2 - lon1) * 0.2; // 호의 높이
-            const latOffset = arcHeight * Math.sin(Math.PI * progress);
-            return [currentLon, currentLat + latOffset];
-        }
-        case 'zigzag': {
-            // 사인파를 이용해 좌우로 흔들리는 지그재그 구현
-            const numZigzags = 5;
-            const perpendicularAngle = Math.atan2(lat2 - lat1, lon2 - lon1) + Math.PI / 2;
-            const zigzagMagnitude = Math.sqrt(Math.pow(lon2-lon1, 2) + Math.pow(lat2-lat1, 2)) * 0.05;
-            const offset = Math.sin(progress * Math.PI * (2 * numZigzags)) * zigzagMagnitude;
-            
-            const lonOffset = Math.cos(perpendicularAngle) * offset;
-            const latOffset = Math.sin(perpendicularAngle) * offset;
-            
-            return [currentLon + lonOffset, currentLat + latOffset];
-        }
-        case 'linear':
-        default: {
-             return [currentLon, currentLat];
-        }
-    }
-};
+import { calculatePosition } from './utils/pathUtils'; // 유틸리티 함수 import
 
 function App() {
+    // 생성된 모든 경로의 정의(경유지, 속도, 거리 등)를 담는 배열
     const [routes, setRoutes] = useState([]);
+    // 각 더미의 실시간 상태(현재 위치, 이동 거리 등)를 담는 배열
     const [dummies, setDummies] = useState([]);
+    // 시뮬레이션 상태: 'idle', 'running', 'paused'
     const [simulationState, setSimulationState] = useState('idle');
+    // 경로 생성 여부: true 또는 false
     const [isRouteGenerated, setIsRouteGenerated] = useState(false);
 
+    // 애니메이션 요청을 추적하기 위한 참조
     const requestRef = useRef();
+    // 이전 프레임 시간을 추적하기 위한 참조
     const previousTimeRef = useRef();
 
+    // 더미 데이터를 서버로 전송하는 함수 (최대 1초마다 한 번씩 호출)
     const sendDummyDataToServer = useThrottle((dummiesData) => {
         if (!dummiesData || dummiesData.length === 0) return;
+        // 각 더미에 대해 서버로 데이터 전송
         dummiesData.forEach(dummy => {
             if (dummy.isCompleted || !dummy.position) return;
             const payload = { id: dummy.id, position: dummy.position, speed_mps: dummy.speed };
             console.log(`[API Call] Sending data for Dummy ID: ${dummy.id}`, payload);
         });
-    }, 2000);
+    }, 1000);
 
+    // 매 프레임마다 호출되는 핵심 애니메이션 루프
     const animate = useCallback((time) => {
+        // 이전 프레임 시간이 존재하는 경우에만 애니메이션 실행
         if (previousTimeRef.current != null) {
+            // 이전 프레임과 현재 프레임 사이의 시간 차이 계산
             const deltaTime = (time - previousTimeRef.current) / 1000;
 
+            // 더미 데이터 업데이트
             setDummies(prevDummies => {
-                if (prevDummies.length === 0) {
-                    setSimulationState('idle');
-                    return [];
-                }
+                if (prevDummies.length === 0) { setSimulationState('idle'); return []; }
                 
+                // 모든 더미가 완료되었는지 확인
                 let allCompleted = true;
+                // 각 더미에 대해 위치 업데이트
                 const updatedDummies = prevDummies.map(dummy => {
+                    // 이미 완료된 더미는 건너뜀
                     if (dummy.isCompleted) return dummy;
                     
                     allCompleted = false;
                     const newDistance = dummy.distanceTraveled + (dummy.speed * deltaTime);
                     const progress = dummy.totalDistance > 0 ? Math.min(newDistance / dummy.totalDistance, 1) : 1;
-                    
                     const newPosition = calculatePosition(dummy.route, progress);
 
-                    return {
-                        ...dummy,
-                        position: newPosition,
-                        distanceTraveled: newDistance,
-                        isCompleted: progress >= 1,
-                    };
+                    return { ...dummy, position: newPosition, distanceTraveled: newDistance, isCompleted: progress >= 1 };
                 });
 
                 if (allCompleted) setSimulationState('idle');
@@ -102,16 +68,16 @@ function App() {
         requestRef.current = requestAnimationFrame(animate);
     }, [sendDummyDataToServer]);
 
+    // 시뮬레이션 상태가 변경될 때마다 애니메이션 실행 또는 중지
     useEffect(() => {
         if (simulationState === 'running') {
             previousTimeRef.current = performance.now();
             requestRef.current = requestAnimationFrame(animate);
-        } else {
-            cancelAnimationFrame(requestRef.current);
-        }
+        } else { cancelAnimationFrame(requestRef.current); }
         return () => cancelAnimationFrame(requestRef.current);
     }, [simulationState, animate]);
 
+    // 경로가 생성되면 더미 데이터 초기화 및 상태 설정
     const handleRoutesGenerated = (newRoutes) => {
         setRoutes(newRoutes);
         const newDummies = newRoutes.map(route => ({
@@ -119,7 +85,7 @@ function App() {
             route: route,
             speed: route.speed,
             totalDistance: route.totalDistance,
-            position: route.startPoint,
+            position: route.waypoints[0],
             distanceTraveled: 0,
             isCompleted: false,
         }));
@@ -128,21 +94,16 @@ function App() {
         setIsRouteGenerated(true);
     };
 
+    // 시뮬레이션 제어 함수
     const handleSimulationControl = (action) => {
         switch(action) {
-            case 'start':
-                if (dummies.length > 0 && dummies.some(d => !d.isCompleted)) setSimulationState('running');
-                break;
-            case 'pause':
-                setSimulationState('paused');
-                break;
+            case 'start': if (dummies.length > 0 && dummies.some(d => !d.isCompleted)) setSimulationState('running'); break;
+            case 'pause': setSimulationState('paused'); break;
             case 'stop':
-                setDummies(prev => prev.map(d => ({ ...d, position: d.route.startPoint, distanceTraveled: 0, isCompleted: false })));
+                setDummies(prev => prev.map(d => ({ ...d, position: d.route.waypoints[0], distanceTraveled: 0, isCompleted: false })));
                 setSimulationState('idle');
                 break;
-            case 'reset':
-                setRoutes([]); setDummies([]); setIsRouteGenerated(false); setSimulationState('idle');
-                break;
+            case 'reset': setRoutes([]); setDummies([]); setIsRouteGenerated(false); setSimulationState('idle'); break;
             default: break;
         }
     };
