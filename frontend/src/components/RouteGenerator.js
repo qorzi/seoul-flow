@@ -120,7 +120,8 @@ const RouteGenerator = ({ onRoutesGenerated, simulationState, onControl, isRoute
               return {
                   ...route,
                   totalDistance: calculatedTotalDistance, // 역산된 경로의 실제 거리로 덮어쓰기
-                  id: uuidv4(),
+                  userId: 'user-'+uuidv4(),
+                  routeId: uuidv4(),
                   type: 'linear', // 경로는 항상 직선
                   bounds,
               };

@@ -32,13 +32,15 @@ function App() {
 
           // 전송할 데이터(payload)에 timestamp 추가
           const payload = {
-              id: dummy.id, // 더미(사용자)의 고유 ID
+              id: dummy.userId, // 더미(사용자)의 고유 ID
+              route_id: dummy.routeId, // 트랜잭션 ID
               timestamp: new Date().toISOString(), // 현재 시간을 ISO 형식의 문자열로 추가
               position: dummy.position,
               speed_mps: dummy.speed,
           };
 
           console.log(`[API Call] Sending data for Dummy ID: ${dummy.id}`, payload);
+
           // TODO: 실제 API 호출 로직 추가
           // fetch(`/api/dummy/${dummy.id}/update`, {
           //   method: 'POST',
