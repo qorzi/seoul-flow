@@ -2,6 +2,19 @@
 version: '3.8'
 
 services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: seoul-flow-frontend-dev
+    ports:
+      - "${FE_PORT}:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - seoul-flow-net
+
   zookeeper:
     ports:
       - "${ZOOKEEPER_PORT}:2181"

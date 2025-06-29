@@ -2,8 +2,24 @@
 version: '3.8'
 
 services:
-  zookeeper:
-    restart: unless-stopped # 서버 재부팅 또는 비정상 종료 시 자동 재시작
+  frontend:
+    build: ./frontend
+    container_name: seoul-flow-frontend-prod
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    networks:
+      - seoul-flow-net
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      - kafka
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+    networks:
+      - seoul-flow-net
 
   kafka:
     restart: unless-stopped
@@ -26,15 +42,3 @@ services:
             docker-kafka-cluster:
               properties:
                 bootstrap.servers: "kafka:9092"
-
-  # 배포 시에는 backend 서비스도 도커로 함께 실행됩니다.
-  backend:
-    build: ./backend
-    restart: unless-stopped
-    depends_on:
-      - kafka
-    environment:
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
-      # 배포용 DB 접속 정보 등은 prod.env 파일이나 다른 secret 관리 도구를 통해 주입
-    networks:
-      - seoul-flow-net
