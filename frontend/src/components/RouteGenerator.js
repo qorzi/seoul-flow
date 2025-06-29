@@ -11,7 +11,7 @@ const RouteGenerator = ({ onRoutesGenerated, simulationState, onControl, isRoute
     const [formData, setFormData] = useState({
         minSpeed: 30, maxSpeed: 80, overlapRatio: 0.4,
         overlapType: 'temporal', routeCount: 10,
-        pathLengthType: 'medium',
+        pathLengthType: 'short',
         ...defaultBounds
     });
     // 폼 열림 상태 관리
