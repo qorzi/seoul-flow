@@ -52,12 +52,21 @@ services:
       - seoul-flow-net
     # 개발용 카프카의 내부 리스너 주소(kafka:29092)를 인자로 전달
     command: >
-      /opt/bitnami/spark/bin/spark-submit
-      --class com.seoulflow.spark.GrazingDetector
-      --master local[*]
-      --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.6
-      /app/app.jar
-      kafka:29092
+      bash -c "
+        echo 'Waiting for Kafka to be ready...'
+        # nc (netcat)을 사용해 kafka:29092 포트가 열릴 때까지 30초간 대기
+        count=0
+        while ! nc -z kafka 29092 && [[ $$count -lt 30 ]]; do
+          sleep 1
+          count=$$((count+1))
+        done
+        echo 'Kafka is ready. Starting Spark application...'
+        /opt/bitnami/spark/bin/spark-submit
+        --class com.seoulflow.spark.GrazingDetector
+        --master local[*]
+        --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.6
+        /app/app.jar
+      "
 
 volumes:
   spark_ivy_cache:
