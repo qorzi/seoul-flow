@@ -36,3 +36,28 @@ services:
             docker-kafka-cluster:
               properties:
                 bootstrap.servers: "kafka:29092"
+
+  spark:
+    build: ./spark
+    container_name: spark-seoul-flow-dev
+    depends_on:
+      - kafka
+    ports:
+      # Spark UI에 접속하기 위한 포트. http://localhost:4040 으로 접속 가능
+      - "4040:4040"
+    user: root
+    volumes:
+      - spark_ivy_cache:/root/.ivy2
+    networks:
+      - seoul-flow-net
+    # 개발용 카프카의 내부 리스너 주소(kafka:29092)를 인자로 전달
+    command: >
+      /opt/bitnami/spark/bin/spark-submit
+      --class com.seoulflow.spark.GrazingDetector
+      --master local[*]
+      --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.6
+      /app/app.jar
+      kafka:29092
+
+volumes:
+  spark_ivy_cache:

@@ -42,3 +42,20 @@ services:
             docker-kafka-cluster:
               properties:
                 bootstrap.servers: "kafka:9092"
+
+  spark:
+    build: ./spark  # ./spark 폴더의 Dockerfile을 사용해 빌드
+    container_name: spark-seoul-flow
+    depends_on:
+      - kafka # kafka가 실행된 후에 실행되도록 의존성 설정
+    networks:
+      - seoul-flow-net
+    # 컨테이너 실행 시 수행할 spark-submit 명령어 정의
+    # Scala 코드에 kafka:9092 주소를 인자로 전달
+    command: >
+      /opt/bitnami/spark/bin/spark-submit
+      --class com.seoulflow.spark.GrazingDetector
+      --master local[*]
+      --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.6
+      /app/app.jar
+      kafka:9092
