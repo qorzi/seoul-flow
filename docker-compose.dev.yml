@@ -1,6 +1,27 @@
 # docker-compose.dev.yml (FOR LOCAL DEVELOPMENT)
 version: '3.8'
 
+x-airflow-common: &airflow-common
+  image: seoul-flow-airflow:2.9.2
+  build:
+    context: ./airflow
+    dockerfile: Dockerfile
+  environment:
+    - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+    - AIRFLOW__CORE__LOAD_EXAMPLES=False
+    - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+    - AIRFLOW_UID=50000
+    - HOST_PROJECT_PATH=${HOST_PROJECT_PATH}
+  volumes:
+    - ./airflow/dags:/opt/airflow/dags
+    - ./airflow/spark_jobs:/opt/airflow/spark_jobs
+    - ./airflow/logs:/opt/airflow/logs
+    - ./airflow/plugins:/opt/airflow/plugins
+    - spark-checkpoints:/opt/spark/checkpoints
+    - /var/run/docker.sock:/var/run/docker.sock
+  networks:
+    - seoul-flow-net
+
 services:
   frontend:
     build:
@@ -16,17 +37,38 @@ services:
       - seoul-flow-net
 
   zookeeper:
+    image: 'confluentinc/cp-zookeeper:7.5.0'
+    hostname: zookeeper
+    container_name: zookeeper-seoul-flow
     ports:
       - "${ZOOKEEPER_PORT}:2181"
+    environment:
+      - ZOOKEEPER_CLIENT_PORT=2181
+      - ZOOKEEPER_TICK_TIME=2000
+    networks:
+      - seoul-flow-net
 
   kafka:
+    image: 'confluentinc/cp-kafka:7.5.0'
+    hostname: kafka
+    container_name: kafka-seoul-flow
     ports:
       - "${KAFKA_PORT}:${KAFKA_PORT}"
     environment:
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:${KAFKA_PORT}
+      - KAFKA_BROKER_ID=1
+      - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:${KAFKA_PORT}
+      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+      - KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0
+    networks:
+      - seoul-flow-net
+    depends_on:
+      - zookeeper
 
   akhq:
+    image: 'tchiotludo/akhq'
+    container_name: akhq-seoul-flow
     ports:
       - "${AKHQ_PORT}:8080"
     environment:
@@ -36,37 +78,117 @@ services:
             docker-kafka-cluster:
               properties:
                 bootstrap.servers: "kafka:29092"
-
-  spark:
-    build: ./spark
-    container_name: spark-seoul-flow-dev
-    depends_on:
-      - kafka
-    ports:
-      # Spark UI에 접속하기 위한 포트. http://localhost:4040 으로 접속 가능
-      - "4040:4040"
-    user: root
-    volumes:
-      - spark_ivy_cache:/root/.ivy2
     networks:
       - seoul-flow-net
-    # 개발용 카프카의 내부 리스너 주소(kafka:29092)를 인자로 전달
+    depends_on:
+      - kafka
+
+  postgres:
+    image: postgres:16
+    container_name: postgres-airflow
+    environment:
+      - POSTGRES_USER=airflow
+      - POSTGRES_PASSWORD=airflow
+      - POSTGRES_DB=airflow
+    ports:
+      - "5432:5432"
+    networks:
+      - seoul-flow-net
+
+  # Airflow 초기화를 담당하는 일회성 서비스
+  airflow-init:
+    <<: *airflow-common
+    container_name: airflow-init-dev
+    depends_on:
+      - postgres
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        # 사용자가 이미 존재하는지 확인하는 함수
+        user_exists() {
+          airflow users list | grep -q " admin "
+        }
+
+        # DB 초기화
+        airflow db init
+
+        # Spark 연결 설정
+        airflow connections delete spark_default || true
+        airflow connections add 'spark_default' \
+            --conn-type 'spark' \
+            --conn-host 'spark://spark-master' \
+            --conn-port '7077'
+
+        # 사용자가 존재하지 않을 때만 생성
+        if ! user_exists; then
+          airflow users create \
+            --username admin \
+            --password admin \
+            --firstname Anonymous \
+            --lastname User \
+            --role Admin \
+            --email admin@example.com
+        fi
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: airflow-webserver-dev
+    command: webserver
+    ports:
+      - "8089:8080" # Airflow UI 포트 (기존 Spark UI와 겹치지 않게 변경)
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: always
+    depends_on:
+      - airflow-init
+
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: airflow-scheduler-dev
+    command: scheduler
+    restart: always
+    depends_on:
+      - airflow-init
+
+  # 개발용 Spark 클러스터 (Master & Worker)
+  spark-master:
+    image: bitnami/spark:3.5
+    container_name: spark-master-dev
     command: >
-      bash -c "
-        echo 'Waiting for Kafka to be ready...'
-        # nc (netcat)을 사용해 kafka:29092 포트가 열릴 때까지 30초간 대기
-        count=0
-        while ! nc -z kafka 29092 && [[ $$count -lt 30 ]]; do
-          sleep 1
-          count=$$((count+1))
-        done
-        echo 'Kafka is ready. Starting Spark application...'
-        /opt/bitnami/spark/bin/spark-submit
-        --class com.seoulflow.spark.GrazingDetector
-        --master local[*]
-        --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.6
-        /app/app.jar
-      "
+      /opt/bitnami/spark/bin/spark-class org.apache.spark.deploy.master.Master
+    ports:
+      - "9090:8080" # Spark Master Web UI
+      - "7077:7077" # Spark Master RPC Port
+    volumes:
+      - ./airflow/spark_jobs:/opt/airflow/spark_jobs
+      - spark-checkpoints:/opt/spark/checkpoints
+    networks:
+      - seoul-flow-net
+
+  spark-worker:
+    image: bitnami/spark:3.5
+    container_name: spark-worker-dev
+    command: >
+      /opt/bitnami/spark/bin/spark-class org.apache.spark.deploy.worker.Worker
+      spark://spark-master:7077
+    ports:
+    - "8081:8081"
+    depends_on:
+      - spark-master
+    volumes:
+      - ./airflow/spark_jobs:/opt/airflow/spark_jobs
+      - spark-checkpoints:/opt/spark/checkpoints
+    networks:
+      - seoul-flow-net
 
 volumes:
-  spark_ivy_cache:
+  spark-checkpoints:
+    driver: local
+
+networks:
+  seoul-flow-net:
+    driver: bridge
+    
