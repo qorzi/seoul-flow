@@ -210,6 +210,36 @@ services:
     networks:
       - seoul-flow-net
 
+  druid:
+    image: apache/druid:29.0.1
+    container_name: druid-standalone-dev
+    ports:
+      - "8888:8888"   # Druid Console
+      - "8082:8082"   # Broker
+      - "8081:8081"   # Overlord
+      - "8083:8083"   # Router
+    volumes:
+      - ./druid/supervisor:/opt/druid/supervisor
+    working_dir: /opt/druid
+    command: >
+      sh -c "
+        bin/start-micro-quickstart &
+
+        until curl -s http://localhost:8081/status; do
+          echo 'Waiting for Druid Overlord to be ready...'
+          sleep 2
+        done
+
+        echo 'Registering supervisor spec...'
+        curl -X POST -H 'Content-Type: application/json' -d @/opt/druid/supervisor/graze_events.json http://localhost:8081/druid/indexer/v1/supervisor
+
+        wait
+      "
+    environment:
+      - DRUID_XMX=2g
+      - DRUID_XMS=2g
+      - DRUID_MAXNEWSIZE=2g
+
 networks:
   seoul-flow-net:
     driver: bridge
