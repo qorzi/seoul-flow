@@ -81,6 +81,19 @@ services:
     depends_on:
       - zookeeper
 
+  # 토픽 자동 생성용 서비스
+  kafka-init:
+    image: 'confluentinc/cp-kafka:7.5.0'
+    depends_on:
+      - kafka
+    entrypoint: [ "sh", "-c",
+      "sleep 20 && \
+       kafka-topics --create --if-not-exists --topic graze-events --bootstrap-server kafka:29092 --replication-factor 1 --partitions 1 && \
+       kafka-topics --create --if-not-exists --topic user-location-updates --bootstrap-server kafka:29092 --replication-factor 1 --partitions 1 && \
+       echo 'Kafka topics created.'" ]
+    networks:
+      - seoul-flow-net
+
   akhq:
     image: 'tchiotludo/akhq'
     container_name: akhq-seoul-flow
