@@ -11,14 +11,11 @@ x-airflow-common: &airflow-common
     - AIRFLOW__CORE__LOAD_EXAMPLES=False
     - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
     - AIRFLOW_UID=50000
-    - HOST_PROJECT_PATH=${HOST_PROJECT_PATH}
   volumes:
     - ./airflow/dags:/opt/airflow/dags
     - ./airflow/spark_jobs:/opt/airflow/spark_jobs
     - ./airflow/logs:/opt/airflow/logs
     - ./airflow/plugins:/opt/airflow/plugins
-    - spark-checkpoints:/opt/spark/checkpoints
-    - /var/run/docker.sock:/var/run/docker.sock
   networks:
     - seoul-flow-net
 
@@ -35,6 +32,24 @@ services:
       - /app/node_modules
     networks:
       - seoul-flow-net
+
+  # backend:
+  #   build:
+  #     context: ./backend
+  #     dockerfile: Dockerfile.dev
+  #   container_name: seoul-flow-backend-dev
+  #   ports:
+  #     - "${BACKEND_PORT}:8080"
+  #   volumes:
+  #     - ./backend:/app
+  #   networks:
+  #     - seoul-flow-net
+  #   depends_on:
+  #     - postgres
+  #     - kafka
+  #   environment:
+  #     - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+  #   command: "./gradlew bootRun"
 
   zookeeper:
     image: 'confluentinc/cp-zookeeper:7.5.0'
@@ -155,7 +170,7 @@ services:
 
   # 개발용 Spark 클러스터 (Master & Worker)
   spark-master:
-    image: bitnami/spark:3.5
+    image: bitnami/spark:3.5.1
     container_name: spark-master-dev
     command: >
       /opt/bitnami/spark/bin/spark-class org.apache.spark.deploy.master.Master
@@ -164,12 +179,11 @@ services:
       - "7077:7077" # Spark Master RPC Port
     volumes:
       - ./airflow/spark_jobs:/opt/airflow/spark_jobs
-      - spark-checkpoints:/opt/spark/checkpoints
     networks:
       - seoul-flow-net
 
   spark-worker:
-    image: bitnami/spark:3.5
+    image: bitnami/spark:3.5.1
     container_name: spark-worker-dev
     command: >
       /opt/bitnami/spark/bin/spark-class org.apache.spark.deploy.worker.Worker
@@ -180,13 +194,8 @@ services:
       - spark-master
     volumes:
       - ./airflow/spark_jobs:/opt/airflow/spark_jobs
-      - spark-checkpoints:/opt/spark/checkpoints
     networks:
       - seoul-flow-net
-
-volumes:
-  spark-checkpoints:
-    driver: local
 
 networks:
   seoul-flow-net:

@@ -68,7 +68,7 @@ def main():
         .format("kafka") \
         .option("kafka.bootstrap.servers", kafka_bootstrap_servers) \
         .option("subscribe", "user-location-updates") \
-        .option("startingOffsets", "earliest") \
+        .option("startingOffsets", "latest") \
         .load()
 
     # 6. 전처리 단계에서 주변 그리드 ID를 모두 생성하고 explode
@@ -117,7 +117,7 @@ def main():
         .format("kafka") \
         .option("kafka.bootstrap.servers", kafka_bootstrap_servers) \
         .option("topic", "graze-events") \
-        .option("checkpointLocation", "/opt/spark/checkpoints/grazing_v2") \
+        .option("checkpointLocation", "/tmp/grazing_v2_checkpoint") \
         .outputMode("append") \
         .start()
 
