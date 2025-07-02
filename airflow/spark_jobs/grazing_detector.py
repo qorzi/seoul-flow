@@ -117,9 +117,8 @@ def main():
     ) \
     .filter(calculate_distance(col("left.position.lat"), col("left.position.lng"), col("right.position.lat"), col("right.position.lng")) < 20) \
     .select(
-        # 유저 id를 일관 순서로 저장
-        when(col("left.id") < col("right.id"), col("left.id")).otherwise(col("right.id")).alias("user1_id"),
-        when(col("left.id") < col("right.id"), col("right.id")).otherwise(col("left.id")).alias("user2_id"),
+        col("left.id").alias("user1_id"),
+        col("right.id").alias("user2_id"),
         to_timestamp((col("left.event_time").cast("long") + col("right.event_time").cast("long")) / 2).alias("graze_time"),
         struct(
             ((col("left.position.lat") + col("right.position.lat")) / 2.0).alias("lat"),
