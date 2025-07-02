@@ -11,6 +11,7 @@ def main():
     """
     # 프로그램 실행 시 전달된 인자가 없으면 기본값으로 localhost:9092 사용
     kafka_bootstrap_servers = sys.argv[1] if len(sys.argv) > 1 else "localhost:9092"
+    print(f"Kafka Bootstrap Servers: {kafka_bootstrap_servers}")
     
     # 1. SparkSession 생성
     spark = SparkSession.builder \
@@ -68,8 +69,17 @@ def main():
         .format("kafka") \
         .option("kafka.bootstrap.servers", kafka_bootstrap_servers) \
         .option("subscribe", "user-location-updates") \
-        .option("startingOffsets", "latest") \
+        .option("startingOffsets", "earliest") \
         .load()
+
+    # [로그 1] Kafka에서 막 들어온 원본 데이터 확인
+    kafka_stream_df.selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)", "topic", "partition", "offset", "timestamp") \
+        .writeStream \
+        .format("console") \
+        .outputMode("append") \
+        .option("truncate", "false") \
+        .queryName("raw_kafka_data_console") \
+        .start()
 
     # 6. 전처리 단계에서 주변 그리드 ID를 모두 생성하고 explode
     locations_df = kafka_stream_df \
@@ -81,6 +91,14 @@ def main():
         .withColumn("grid_id", explode(col("grid_ids"))) \
         .drop("grid_ids") \
         .withWatermark("event_time", "15 seconds") # 마지막 event_time보다 15초 이전 데이터는 제거
+
+    # [로그 2] 전처리 및 explode 후 데이터 확인
+    locations_df.writeStream \
+        .format("console") \
+        .outputMode("append") \
+        .option("truncate", "false") \
+        .queryName("preprocessed_data_console") \
+        .start()
 
     # 7. 스침 감지 로직 (스트림-스트림 셀프 조인)
     left = locations_df.alias("left")
@@ -109,6 +127,14 @@ def main():
         ).alias("position")
     ) \
     .dropDuplicates(["user1_id", "user2_id"]) # 복제된 데이터로 인해 중복된 스침 이벤트가 발생할 수 있으므로, 중복 제거
+
+    # [로그 추가 3] Kafka로 보내기 직전의 최종 데이터 확인
+    graze_events_df.writeStream \
+        .format("console") \
+        .outputMode("append") \
+        .option("truncate", "false") \
+        .queryName("final_data_to_kafka_console") \
+        .start()
 
     # 8. 결과 쓰기
     query = graze_events_df \
