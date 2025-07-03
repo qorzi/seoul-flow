@@ -10,5 +10,14 @@ spring:
       properties:
         spring.json.add.type.headers: false
 
+  datasource:
+    # ClickHouse JDBC URL (호스트, 포트, 데이터베이스명)
+    url: jdbc:clickhouse://localhost:8123/default
+    # ClickHouse 드라이버 클래스 이름
+    driver-class-name: com.clickhouse.jdbc.ClickHouseDriver
+    # 유저와 비밀번호는 설정하지 않았으므로 생략
+    # username:
+    # password:
+
 kafka-topics:
   user-location-topic: "user-location-updates"
