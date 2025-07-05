@@ -5,6 +5,7 @@ import RouteGenerator from './components/RouteGenerator';
 import MapView from './components/MapView';
 import DummyTable from './components/DummyTable';
 import GrazeView from './components/GrazeView';
+import DensityView from './components/DensityView'; // 새로 추가
 import { useThrottle } from './utils/useThrottle';
 import { calculatePosition } from './utils/pathUtils';
 
@@ -18,14 +19,17 @@ function App() {
     // 경로 생성 여부: true 또는 false
     const [isRouteGenerated, setIsRouteGenerated] = useState(false);
     
-    // 화면 모드: 'simulation' 또는 'graze'
+    // 현재 화면 모드: 'simulation', 'graze', 'density'
     const [viewMode, setViewMode] = useState('simulation');
-    // API로부터 받아온 스침 이벤트 데이터
+    
+    // 스침 기록 관련 상태
     const [grazeEvents, setGrazeEvents] = useState([]);
-    // 스침 이벤트 데이터 로딩 상태
     const [isLoadingGraze, setIsLoadingGraze] = useState(false);
-    // 조회할 스침 이벤트 개수
     const [grazeLimit, setGrazeLimit] = useState(30);
+
+    // --- 인구 밀도 관련 상태 (새로 추가) ---
+    const [densityData, setDensityData] = useState({});
+    const [isLoadingDensity, setIsLoadingDensity] = useState(false);
 
     // 애니메이션 요청을 추적하기 위한 참조
     const requestRef = useRef();
@@ -117,18 +121,78 @@ function App() {
         }
     }, []); // 의존성 배열이 비어있으므로 함수는 한 번만 생성됩니다.
 
+    // --- 인구 밀도 데이터를 가져오는 함수 (새로 추가) ---
+    const fetchDensityData = useCallback(async () => {
+        setIsLoadingDensity(true);
+        try {
+            const response = await fetch(`http://localhost:8080/api/grid-density/recent`);
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const data = await response.json();
+            setDensityData(data);
+        } catch (error) {
+            console.error("Failed to fetch density data:", error);
+            alert("인구 밀도 데이터를 불러오는데 실패했습니다.");
+        } finally {
+            setIsLoadingDensity(false);
+        }
+    }, []);
+
     // 헤더의 탭 버튼 클릭 시 화면을 전환하는 함수
     const handleViewChange = (mode) => {
         if (mode === 'graze' && viewMode !== 'graze') {
-            setViewMode('graze');
-            fetchGrazeEvents(grazeLimit); // 현재 설정된 limit으로 데이터 조회
-        } else {
-            setViewMode('simulation');
+            fetchGrazeEvents(grazeLimit);
+        } else if (mode === 'density' && viewMode !== 'density') {
+            fetchDensityData();
         }
+        setViewMode(mode);
     };
 
     const defaultBounds = useMemo(() => ({ northLat: 37.5200, southLat: 37.4800, eastLng: 127.0500, westLng: 126.9800 }), []);
     const bounds = isRouteGenerated && routes.length > 0 ? routes[0].bounds : defaultBounds;
+
+    const renderContent = () => {
+        switch (viewMode) {
+            case 'graze':
+                return (
+                    <div className="main-container">
+                        <GrazeView 
+                            grazeEvents={grazeEvents} 
+                            isLoading={isLoadingGraze}
+                            onFetch={fetchGrazeEvents}
+                            currentLimit={grazeLimit}
+                        />
+                    </div>
+                );
+            case 'density':
+                return (
+                    <div className="main-container">
+                        <DensityView
+                            densityData={densityData}
+                            isLoading={isLoadingDensity}
+                        />
+                    </div>
+                );
+            case 'simulation':
+            default:
+                return (
+                    <div className="main-container">
+                        <div className="left-panel">
+                            <RouteGenerator 
+                                onRoutesGenerated={handleRoutesGenerated} 
+                                simulationState={simulationState} 
+                                onControl={handleSimulationControl} 
+                                isRouteGenerated={isRouteGenerated} 
+                                defaultBounds={defaultBounds}
+                            />
+                            <DummyTable dummies={dummies} simulationState={simulationState} />
+                        </div>
+                        <div className="right-panel">
+                            <MapView routes={routes} dummies={dummies} currentBounds={bounds} isRouteGenerated={isRouteGenerated} />
+                        </div>
+                    </div>
+                );
+        }
+    };
 
     return (
         <div className="App">
@@ -138,38 +202,16 @@ function App() {
                         시뮬레이터
                     </button>
                     <button onClick={() => handleViewChange('graze')} className={viewMode === 'graze' ? 'active' : ''}>
-                        스침 기록 확인
+                        스침 기록
+                    </button>
+                    <button onClick={() => handleViewChange('density')} className={viewMode === 'density' ? 'active' : ''}>
+                        인구 밀도
                     </button>
                 </nav>
                 <h1 className="header-title">Dummy Path Movement Simulator</h1>
             </header>
             
-            {viewMode === 'simulation' ? (
-                <div className="main-container">
-                    <div className="left-panel">
-                        <RouteGenerator 
-                            onRoutesGenerated={handleRoutesGenerated} 
-                            simulationState={simulationState} 
-                            onControl={handleSimulationControl} 
-                            isRouteGenerated={isRouteGenerated} 
-                            defaultBounds={defaultBounds}
-                        />
-                        <DummyTable dummies={dummies} simulationState={simulationState} />
-                    </div>
-                    <div className="right-panel">
-                        <MapView routes={routes} dummies={dummies} currentBounds={bounds} isRouteGenerated={isRouteGenerated} />
-                    </div>
-                </div>
-            ) : (
-                <div className="main-container">
-                    <GrazeView 
-                        grazeEvents={grazeEvents} 
-                        isLoading={isLoadingGraze}
-                        onFetch={fetchGrazeEvents}
-                        currentLimit={grazeLimit}
-                    />
-                </div>
-            )}
+            {renderContent()}
         </div>
     );
 }

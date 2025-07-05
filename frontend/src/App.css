@@ -195,7 +195,7 @@
   .status-waiting { color: #6c757d; font-weight: bold; }
   .status-paused { color: #ffc107; font-weight: bold; }
   
-  /* --- GrazeView (수정) --- */
+  /* --- GrazeView --- */
   .graze-view-container {
     width: 100%;
     height: 100%;
@@ -255,6 +255,60 @@
   .graze-map-header .header-controls .btn {
       padding: 8px 16px;
       font-size: 14px;
+  }
+  
+  /* --- DensityView (새로 추가) --- */
+  .density-view-container {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  }
+  
+  .density-map-header {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    background: rgba(33, 37, 41, 0.85); /* 어두운 배경 */
+    color: white;
+    backdrop-filter: blur(5px);
+    padding: 12px 25px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    display: flex;
+    align-items: center;
+    gap: 25px;
+    width: 60%;
+    max-width: 700px;
+  }
+  
+  .density-map-header .density-title-section {
+      text-align: left;
+      flex-shrink: 0;
+  }
+  
+  .density-map-header h2 {
+      margin: 0 0 4px 0;
+      font-size: 1.2rem;
+  }
+  
+  .density-map-header p {
+      margin: 0;
+      font-size: 0.9rem;
+      color: #ced4da;
+  }
+  
+  .density-slider-container {
+      flex-grow: 1;
+  }
+  
+  .time-slider {
+      width: 100%;
+      cursor: pointer;
   }
   
   
