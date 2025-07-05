@@ -64,13 +64,15 @@ def main():
         .agg(approx_count_distinct("id").alias("user_count"))
 
     # [로그] 집계된 결과가 Kafka로 전송되기 전에 콘솔에서 확인
-    grid_density_df.writeStream \
-        .format("console") \
-        .outputMode("update") \
-        .option("truncate", "false") \
-        .queryName("hourly_density_console") \
-        .trigger(processingTime='1 hour') \
-        .start()
+    # availableNow=True는 console 출력에는 사용할 수 없으므로, 디버깅 시에만 주석을 해제하여 사용합니다.
+    # grid_density_df.writeStream \
+    #     .format("console") \
+    #     .outputMode("update") \
+    #     .option("truncate", "false") \
+    #     .queryName("hourly_density_console") \
+    #     .trigger(availableNow=True) \
+    #     .start() \
+    #     .awaitTermination()
 
     # 7. 집계 결과를 새로운 Kafka 토픽으로 쓰기
     query = grid_density_df \
@@ -81,7 +83,7 @@ def main():
         .option("topic", "grid-density-hourly") \
         .option("checkpointLocation", "/tmp/grid_density_checkpoint") \
         .outputMode("update") \
-        .trigger(processingTime='1 hour') \
+        .trigger(availableNow=True) \
         .start()
 
     query.awaitTermination()
