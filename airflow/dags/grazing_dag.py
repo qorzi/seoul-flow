@@ -35,6 +35,7 @@ with DAG(
         application_args=["kafka:29092"],
         # 필요한 패키지
         packages="org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1",
+        conf={"spark.cores.max": "2"},
         retries=1,
         retry_delay=timedelta(minutes=1),
     )

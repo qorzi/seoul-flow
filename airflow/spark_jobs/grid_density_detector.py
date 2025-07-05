@@ -1,6 +1,6 @@
 import sys
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import udf, from_json, col, to_timestamp, struct, to_json, date_trunc, countDistinct
+from pyspark.sql.functions import udf, from_json, col, to_timestamp, struct, to_json, date_trunc, approx_count_distinct
 from pyspark.sql.types import StructType, StructField, StringType, DoubleType
 
 def main():
@@ -61,7 +61,7 @@ def main():
         .withColumn("hourly_timestamp", date_trunc('HOUR', col("event_time"))) \
         .withColumn("grid_id", get_grid_id(col("position.lat"), col("position.lng"))) \
         .groupBy("hourly_timestamp", "grid_id") \
-        .agg(countDistinct("id").alias("user_count")) # 고유한 사용자 ID의 개수를 계산
+        .agg(approx_count_distinct("id").alias("user_count"))
 
     # [로그] 집계된 결과가 Kafka로 전송되기 전에 콘솔에서 확인
     grid_density_df.writeStream \
@@ -79,7 +79,7 @@ def main():
         .format("kafka") \
         .option("kafka.bootstrap.servers", kafka_bootstrap_servers) \
         .option("topic", "grid-density-hourly") \
-        .option("checkpointLocation", "/opt/spark/checkpoints/grid_density_checkpoint") \
+        .option("checkpointLocation", "/tmp/grid_density_checkpoint") \
         .outputMode("update") \
         .trigger(processingTime='1 hour') \
         .start()

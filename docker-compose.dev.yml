@@ -208,6 +208,9 @@ services:
       - spark-master
     volumes:
       - ./airflow/spark_jobs:/opt/airflow/spark_jobs
+    environment:
+      - SPARK_WORKER_CORES=4
+      - SPARK_WORKER_MEMORY=8G
     networks:
       - seoul-flow-net
 
