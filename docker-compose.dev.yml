@@ -33,23 +33,20 @@ services:
     networks:
       - seoul-flow-net
 
-  # backend:
-  #   build:
-  #     context: ./backend
-  #     dockerfile: Dockerfile.dev
-  #   container_name: seoul-flow-backend-dev
-  #   ports:
-  #     - "${BACKEND_PORT}:8080"
-  #   volumes:
-  #     - ./backend:/app
-  #   networks:
-  #     - seoul-flow-net
-  #   depends_on:
-  #     - postgres
-  #     - kafka
-  #   environment:
-  #     - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-  #   command: "./gradlew bootRun"
+backend:
+  build:
+    context: ./backend
+    dockerfile: Dockerfile
+  container_name: seoul-flow-backend-dev
+  ports:
+    - "${BACKEND_PORT}:8080"
+  networks:
+    - seoul-flow-net
+  depends_on:
+    - kafka
+    - clickhouse-server
+  environment:
+    - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:29092
 
   zookeeper:
     image: 'confluentinc/cp-zookeeper:7.5.0'
