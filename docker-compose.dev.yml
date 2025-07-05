@@ -90,6 +90,7 @@ services:
       "sleep 20 && \
        kafka-topics --create --if-not-exists --topic graze-events --bootstrap-server kafka:29092 --replication-factor 1 --partitions 1 && \
        kafka-topics --create --if-not-exists --topic user-location-updates --bootstrap-server kafka:29092 --replication-factor 1 --partitions 1 && \
+       kafka-topics --create --if-not-exists --topic grid-density-hourly --bootstrap-server kafka:29092 --replication-factor 1 --partitions 1 && \
        echo 'Kafka topics created.'" ]
     networks:
       - seoul-flow-net

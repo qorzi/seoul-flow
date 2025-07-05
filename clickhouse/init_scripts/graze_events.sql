@@ -13,7 +13,6 @@ ORDER BY graze_time;
 
 
 -- Kafka 토픽에서 데이터를 직접 읽는 Kafka 엔진 테이블을 생성합니다.
--- Druid의 ioConfig에 해당합니다.
 CREATE TABLE IF NOT EXISTS default.graze_events_kafka
 (
     -- Kafka 메시지 전체를 JSON(또는 String)으로 받습니다.
@@ -29,7 +28,6 @@ SETTINGS
 
 
 -- Kafka 테이블에서 데이터를 읽어 파싱한 후, 최종 테이블(graze_events)에 삽입하는 Materialized View를 생성합니다.
--- Druid의 Supervisor 역할과 dataSchema 매핑을 수행합니다.
 CREATE MATERIALIZED VIEW default.graze_events_mv TO default.graze_events
 AS SELECT
     parseDateTime64BestEffort(JSONExtractString(raw_message, 'graze_time')) AS graze_time,
