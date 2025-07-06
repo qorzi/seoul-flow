@@ -22,11 +22,14 @@ public class GridDensityRepository {
 
     // 최근 24시간 동안의 그리드 밀도 데이터를 조회하는 메서드
     public List<GridDensityData> findRecentHourlyData() {
-        // SQL: 현재 시간(UTC)을 기준으로 가장 최근 완료된 시간부터 24시간 전까지의 데이터를 조회
         String sql = """
-            SELECT hourly_timestamp, grid_id, user_count
+            SELECT
+                hourly_timestamp,
+                grid_id,
+                sum(user_count) as user_count
             FROM grid_density_hourly
             WHERE hourly_timestamp >= ? AND hourly_timestamp < ?
+            GROUP BY hourly_timestamp, grid_id
             ORDER BY hourly_timestamp
         """;
 
@@ -41,7 +44,7 @@ public class GridDensityRepository {
         return jdbcTemplate.query(sql, this::mapRowToGridDensity, startHour, endHour);
     }
 
-    // ResultSet의 한 행을 GridDensityDto 객체로 매핑
+    // ResultSet의 한 행을 GridDensityData 객체로 매핑
     private GridDensityData mapRowToGridDensity(ResultSet rs, int rowNum) throws SQLException {
         return new GridDensityData(
                 rs.getTimestamp("hourly_timestamp").toLocalDateTime(),
