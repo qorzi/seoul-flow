@@ -33,20 +33,20 @@ services:
     networks:
       - seoul-flow-net
 
-backend:
-  build:
-    context: ./backend
-    dockerfile: Dockerfile
-  container_name: seoul-flow-backend-dev
-  ports:
-    - "${BACKEND_PORT}:8080"
-  networks:
-    - seoul-flow-net
-  depends_on:
-    - kafka
-    - clickhouse-server
-  environment:
-    - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: seoul-flow-backend-dev
+    ports:
+      - "${BACKEND_PORT}:8080"
+    networks:
+      - seoul-flow-net
+    depends_on:
+      - kafka
+      - clickhouse-server
+    environment:
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:29092
 
   zookeeper:
     image: 'confluentinc/cp-zookeeper:7.5.0'
@@ -219,6 +219,7 @@ backend:
       - "9000:9000" # Native client interface
     volumes:
       - ./clickhouse/init_scripts:/docker-entrypoint-initdb.d
+      - ./clickhouse/data:/var/lib/clickhouse/
     ulimits:
       nofile:
         soft: 262144
