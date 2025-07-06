@@ -27,7 +27,7 @@ public class GridDensityRepository {
                 hourly_timestamp,
                 grid_id,
                 sum(user_count) as user_count
-            FROM grid_density_hourly
+            FROM grid_density_hourly_view
             WHERE hourly_timestamp >= ? AND hourly_timestamp < ?
             GROUP BY hourly_timestamp, grid_id
             ORDER BY hourly_timestamp
