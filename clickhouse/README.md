@@ -6,7 +6,7 @@ ClickHouse는 Kafka 토픽을 직접 구독하는 **Materialized View**를 통�
 
 ## 1. 스침 이벤트 (Graze Events)
 
-실시간 Spark 스트리밍 작업(`grazing_detector`)을 통해 분석된 '스침' 이벤트 데이터를 저장한다.
+실시간 Spark 스트리밍 작업(`grazing_detector`)을 통해 분석된 '스침' 이벤트 데이터를 저장한다. 이 부분의 구조는 간단한 데이터 저장이므로 `MergeTree`를 사용한다.
 
 ### 최종 저장 테이블: `graze_events`
 
@@ -31,24 +31,6 @@ ClickHouse는 Kafka 토픽을 직접 구독하는 **Materialized View**를 통�
 1.  **`graze_events_kafka` (Kafka 엔진 테이블)**: `graze-events` 토픽의 메시지를 실시간으로 읽어온다.
 2.  **`graze_events_mv` (Materialized View)**: `graze_events_kafka` 테이블에 새로운 메시지가 들어오면, JSON을 파싱하여 `graze_events` 테이블에 자동으로 삽입한다.
 
-```sql
--- Kafka 엔진 테이블
-CREATE TABLE IF NOT EXISTS default.graze_events_kafka ( raw_message String )
-ENGINE = Kafka
-SETTINGS kafka_broker_list = 'kafka:29092', kafka_topic_list = 'graze-events',
-         kafka_group_name = 'graze_events_clickhouse_group', kafka_format = 'JSONAsString';
-
--- Materialized View
-CREATE MATERIALIZED VIEW default.graze_events_mv TO default.graze_events AS
-SELECT
-    parseDateTime64BestEffort(JSONExtractString(raw_message, 'graze_time')) AS graze_time,
-    JSONExtractString(raw_message, 'user1_id') AS user1_id,
-    JSONExtractString(raw_message, 'user2_id') AS user2_id,
-    JSONExtractFloat(raw_message, 'position', 'lat') AS position_lat,
-    JSONExtractFloat(raw_message, 'position', 'lng') AS position_lng
-FROM default.graze_events_kafka;
-```
-
 ### 데이터 예시 (`graze-events` 토픽)
 
 ```json
@@ -67,44 +49,42 @@ FROM default.graze_events_kafka;
 
 ## 2. 시간대별 인구 밀도 (Hourly Grid Density)
 
-Airflow가 주기적으로 실행하는 Spark 배치 작업(`grid_density_detector`)의 결과물인 시간대별 그리드 인구 밀도 데이터를 저장한다.
+주기적으로 실행되는 Spark 배치 작업의 결과물인 인구 밀도 데이터를 저장한다. 이 데이터는 동일한 키(`hourly_timestamp`, `grid_id`)에 대해 데이터가 중복으로 들어올 수 있으므로, **자동으로 값을 합산(Rollup)하는 `AggregatingMergeTree` 엔진을 사용**하여 저장 효율과 쿼리 성능을 극대화한다.
 
 ### 최종 저장 테이블: `grid_density_hourly`
 
--   **역할**: 특정 시간(정시 기준)에 특정 그리드 내에 존재했던 고유 사용자 수를 저장한다.
--   **엔진**: `MergeTree`
+-   **역할**: 특정 시간과 그리드에 대한 `user_count`의 '중간 집계 상태'를 저장한다. 동일한 키의 데이터가 들어오면 기존 상태에 새로운 상태를 자동으로 병합한다.
+-   **엔진**: `AggregatingMergeTree`
 -   **스키마**:
     ```sql
     CREATE TABLE IF NOT EXISTS default.grid_density_hourly
     (
         `hourly_timestamp` DateTime64(3, 'UTC'),
         `grid_id` String,
-        `user_count` UInt64
+        `user_count` AggregateFunction(sum, UInt64)
     )
-    ENGINE = MergeTree
+    ENGINE = AggregatingMergeTree
     ORDER BY (hourly_timestamp, grid_id);
+    ```
+
+### 쿼리용 뷰: `grid_density_hourly_view`
+
+-   **역할**: `AggregatingMergeTree`에 저장된 '중간 집계 상태'를 최종 합계 값으로 변환하여 보여주는 읽기 전용 뷰. 사용자는 이 뷰를 일반 테이블처럼 조회하면 되므로, 매번 `sumMerge`, `GROUP BY`를 사용할 필요가 없어 편리하다.
+-   **스키마**:
+    ```sql
+    CREATE VIEW default.grid_density_hourly_view AS
+    SELECT
+        hourly_timestamp,
+        grid_id,
+        sumMerge(user_count) AS user_count
+    FROM default.grid_density_hourly
+    GROUP BY hourly_timestamp, grid_id;
     ```
 
 ### 데이터 흐름 (Kafka -> ClickHouse)
 
 1.  **`grid_density_hourly_kafka` (Kafka 엔진 테이블)**: `grid-density-hourly` 토픽의 메시지를 읽어온다.
-2.  **`grid_density_hourly_mv` (Materialized View)**: 새로운 밀도 데이터가 들어오면 JSON을 파싱하여 `grid_density_hourly` 테이블에 자동으로 삽입한다.
-
-```sql
--- Kafka 엔진 테이블
-CREATE TABLE IF NOT EXISTS default.grid_density_hourly_kafka ( raw_message String )
-ENGINE = Kafka
-SETTINGS kafka_broker_list = 'kafka:29092', kafka_topic_list = 'grid-density-hourly',
-         kafka_group_name = 'grid_density_clickhouse_group', kafka_format = 'JSONAsString';
-
--- Materialized View
-CREATE MATERIALIZED VIEW default.grid_density_hourly_mv TO default.grid_density_hourly AS
-SELECT
-    parseDateTime64BestEffort(JSONExtractString(raw_message, 'hourly_timestamp')) AS hourly_timestamp,
-    JSONExtractString(raw_message, 'grid_id') AS grid_id,
-    JSONExtractUInt(raw_message, 'user_count') AS user_count
-FROM default.grid_density_hourly_kafka;
-```
+2.  **`grid_density_hourly_mv` (Materialized View)**: 새로운 메시지가 들어오면 `sumState` 함수를 사용해 `user_count`를 '집계 상태'로 변환한 후, `grid_density_hourly` 테이블에 자동으로 삽입한다.
 
 ### 데이터 예시 (`grid-density-hourly` 토픽)
 
