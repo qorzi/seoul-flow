@@ -36,7 +36,7 @@ services:
   backend:
     build:
       context: ./backend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     container_name: seoul-flow-backend-dev
     ports:
       - "${BACKEND_PORT}:8080"
