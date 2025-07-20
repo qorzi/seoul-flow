@@ -1,0 +1,26 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE / Editor specific
+.idea/
+.vscode/
+*.swp
+
+# Virtual environment
+.venv/
+venv/
+env/
+ENV/
+
+# Docker
+docker-compose.override.yml
+
+# Data and Output
+/data/
+/output/
+
+# Spark/Hadoop files
+*.crc
+_SUCCESS
