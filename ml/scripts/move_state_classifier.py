@@ -198,10 +198,7 @@ def create_features_from_windows(df):
     )
 
 def process_data(spark, data_path):
-    """
-    전체 데이터 처리 파이프라인입니다.
-    라벨 필터링 및 재그룹화 로직이 추가되었습니다.
-    """
+    """전체 데이터 처리 파이프라인입니다."""
     print("1단계 1/4: 이동 궤적 데이터 로딩 중...")
     trajectory_df = load_trajectory_data(spark, data_path)
     
@@ -210,25 +207,15 @@ def process_data(spark, data_path):
     if labels_df is None:
         raise FileNotFoundError("labels.txt 파일을 찾을 수 없습니다. 훈련을 진행할 수 없습니다.")
 
-    print("\n[처리] 라벨 필터링 및 재그룹화 중...")
-    
-    # 1. 'boat', 'airplane'과 같이 이질적인 데이터는 학습에서 제외합니다.
-    filtered_labels_df = labels_df.filter(~col("label").isin(['boat', 'airplane']))
+    print("\n[로그] 로드된 전체 라벨 종류 및 개수:")
+    labels_df.groupBy("label").count().show(truncate=False)
 
-    # 2. 라벨을 'walk', 'bike', 'transport' 세 가지 카테고리로 재그룹화합니다.
-    regrouped_labels_df = filtered_labels_df.withColumn("new_label",
-        when(col("label").isin(['walk', 'run']), lit("walk"))
-        .when(col("label").isin(['bike', 'motorcycle']), lit("bike"))
-        .otherwise(lit("transport"))
-    ).select(
-        col("start_time"),
-        col("end_time"),
-        col("new_label").alias("label"), # 'new_label' 컬럼의 이름을 'label'로 변경
-        col("user_id")
-    )
-
-    print("\n[로그] 재그룹화된 라벨 종류 및 개수:")
-    regrouped_labels_df.groupBy("label").count().show(truncate=False)
+    # 본격적인 연산 전 데이터 파티션을 재분배하여 메모리 부하를 줄입니다.
+    # 파티션 수는 CPU 코어 수의 2~4배 정도로 설정하는 것이 일반적입니다. (예: 200)
+    print("\n[최적화] 데이터 파티션 재분배 중...")
+    num_partitions = 200 
+    trajectory_df = trajectory_df.repartition(num_partitions, "user_id")
+    print(f"trajectory_df를 {trajectory_df.rdd.getNumPartitions()}개의 파티션으로 재분배 완료.")
 
     print("1단계 3/4: 운동학적 특징 계산 중...")
     kinematics_df = calculate_kinematics(trajectory_df).dropna()
@@ -239,12 +226,12 @@ def process_data(spark, data_path):
     features_df = features_df.withColumn("window_center", (col("window.start").cast("long") + col("window.end").cast("long")) / 2)
     features_df = features_df.withColumn("window_center", col("window_center").cast("timestamp"))
 
-    # 재그룹화된 regrouped_labels_df를 사용하여 조인합니다.
-    labeled_features = features_df.join(regrouped_labels_df,
-        (features_df.user_id == regrouped_labels_df.user_id) & \
-        (features_df.window_center >= regrouped_labels_df.start_time) & (features_df.window_center <= regrouped_labels_df.end_time),
+    # join 이후, 모델 훈련에 불필요한 타임스탬프 열들을 drop()으로 제거합니다.
+    labeled_features = features_df.join(labels_df,
+        (features_df.user_id == labels_df.user_id) & \
+        (features_df.window_center >= labels_df.start_time) & (features_df.window_center <= labels_df.end_time),
         "inner"
-    ).drop(regrouped_labels_df.user_id).drop("start_time", "end_time", "window_center")
+    ).drop(labels_df.user_id).drop("start_time", "end_time", "window_center")
     
     print(f"총 {labeled_features.count()}개의 라벨링된 특징 벡터를 생성했습니다.")
     return labeled_features
@@ -292,17 +279,30 @@ def evaluate_model(spark, model, test_df):
 
     print("3단계 3/3: 혼동 행렬(Confusion Matrix) 생성 중...")
     label_converter = model.stages[0]
-    labels = label_converter.labels
+    labels = label_converter.labels # 예: ['airplane', 'car', 'run', ...]
 
-    confusion_matrix = predictions.groupBy("indexedLabel").pivot("prediction", range(len(labels))).count().na.fill(0)
+    # 1. 기존 방식대로 숫자 인덱스로 피봇 테이블 생성
+    confusion_matrix_indexed = predictions.groupBy("indexedLabel") \
+                                          .pivot("prediction", range(len(labels))) \
+                                          .count().na.fill(0)
     
+    # 2. UDF를 사용하여 실제 라벨 이름 컬럼('실제_라벨') 추가
     def map_index_to_label(index):
         return labels[int(index)]
     map_udf = udf(map_index_to_label, StringType())
-    confusion_matrix = confusion_matrix.withColumn("실제_라벨", map_udf(col("indexedLabel"))).drop("indexedLabel")
+    
+    cm_with_label_col = confusion_matrix_indexed.withColumn("실제_라벨", map_udf(col("indexedLabel"))).drop("indexedLabel")
+
+    # 3. 숫자 형태의 컬럼 이름('0', '1', ...)을 실제 라벨 이름으로 변경
+    renamed_cm = cm_with_label_col
+    for i, label_name in enumerate(labels):
+        renamed_cm = renamed_cm.withColumnRenamed(str(i), label_name)
+        
+    # 4. '실제_라벨' 컬럼을 가장 앞으로 오도록 순서 변경
+    final_confusion_matrix = renamed_cm.select("실제_라벨", *labels)
     
     print("===== 혼동 행렬 (Confusion Matrix) =====")
-    confusion_matrix.show(truncate=False)
+    final_confusion_matrix.show(truncate=False)
 
     if not os.path.exists(RESULTS_OUTPUT_PATH):
         os.makedirs(RESULTS_OUTPUT_PATH)
@@ -313,7 +313,7 @@ def evaluate_model(spark, model, test_df):
     })
     results_pd.to_csv(os.path.join(RESULTS_OUTPUT_PATH, "evaluation_metrics.csv"), index=False, encoding='utf-8-sig')
     
-    confusion_matrix.toPandas().to_csv(os.path.join(RESULTS_OUTPUT_PATH, "confusion_matrix.csv"), index=False, encoding='utf-8-sig')
+    final_confusion_matrix.toPandas().to_csv(os.path.join(RESULTS_OUTPUT_PATH, "confusion_matrix.csv"), index=False, encoding='utf-8-sig')
     print(f"평가 결과가 {RESULTS_OUTPUT_PATH} 경로에 저장되었습니다.")
 
 def main():
