@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  spark-app:
+    build:
+      context: .
+      dockerfile: docker/spark/Dockerfile
+    container_name: ml_spark_app
+    volumes:
+      - ./scripts:/app/script
+      - ./data:/app/data
+      - ./output/model:/app/output/model      # 모델 출력 폴더
+      - ./output/results:/app/output/results    # 결과(lib) 출력 폴더
+      - ./output/logs:/app/output/logs          # 로그 출력 폴더
+      - ./docker/spark/conf:/app/conf
+    command: >
+      bash -c "/opt/bitnami/spark/bin/spark-submit \
+      --master local[8] \
+      --driver-memory 12g \
+      --files /app/conf/log4j.properties \
+      --conf 'spark.driver.extraJavaOptions=-Dlog4j.configuration=file:log4j.properties' \
+      /app/script/move_state_classifier.py > /app/output/logs/spark-app.log 2>&1"
