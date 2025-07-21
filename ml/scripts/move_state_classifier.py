@@ -125,6 +125,8 @@ def calculate_kinematics(df):
     df = df.withColumn("speed", when(col("time_delta") > 0, col("distance") / col("time_delta")).otherwise(0))
     df = df.withColumn("prev_speed", lag("speed").over(window_spec))
     df = df.withColumn("accel", when(col("time_delta") > 0, (col("speed") - col("prev_speed")) / col("time_delta")).otherwise(0))
+    df = df.withColumn("prev_accel", lag("accel").over(window_spec))
+    df = df.withColumn("jerk", when(col("time_delta") > 0, (col("accel") - col("prev_accel")) / col("time_delta")).otherwise(0))
 
     @udf(returnType=DoubleType())
     def calculate_bearing(lat1, lon1, lat2, lon2):
@@ -139,11 +141,11 @@ def calculate_kinematics(df):
     df = df.withColumn("bearing", calculate_bearing(col("prev_lat"), col("prev_lon"), col("lat"), col("lon")))
     df = df.withColumn("bearing_rate", (col("bearing") - lag("bearing").over(window_spec)) / col("time_delta"))
 
-    return df.select("user_id", "timestamp", "lat", "lon", "speed", "accel", "bearing", "bearing_rate", "distance")
+    return df.select("user_id", "timestamp", "lat", "lon", "speed", "accel", "jerk", "bearing", "bearing_rate", "distance")
 
 def create_features_from_windows(df):
     """슬라이딩 윈도우를 기준으로 그룹화하고 집계 특징을 생성합니다."""
-    df = df.na.drop(subset=["speed", "accel", "bearing_rate", "distance"])
+    df = df.na.drop(subset=["speed", "accel", "jerk", "bearing_rate", "distance"])
 
     # 윈도우별 특징 집계
     features_df = df.groupBy(
@@ -157,9 +159,9 @@ def create_features_from_windows(df):
         percentile_approx("speed", 0.95).alias("p95_speed"),
         avg("accel").alias("avg_accel"),
         stddev("accel").alias("stddev_accel"),
+        stddev("jerk").alias("stddev_jerk"),
         (count(when(col("speed") < 0.5, 1)) / count("*")).alias("stop_rate"),
         avg("bearing_rate").alias("avg_bearing_rate"),
-        # abs() 함수를 Spark의 abs로 수정
         (count(when(abs(col("bearing_rate")) > 15, 1)) / count("*")).alias("hcr_rate"),
         sum("distance").alias("total_distance")
     ).na.fill(0)
@@ -193,7 +195,7 @@ def create_features_from_windows(df):
 
     return features_df.select(
         "user_id", "window", "avg_speed", "max_speed", "stddev_speed", "p75_speed", "p95_speed",
-        "avg_accel", "stddev_accel", "stop_rate", "avg_bearing_rate", "hcr_rate",
+        "avg_accel", "stddev_accel", "stddev_jerk", "stop_rate", "avg_bearing_rate", "hcr_rate",
         "total_distance", "straightness_index"
     )
 
@@ -230,6 +232,10 @@ def process_data(spark, data_path):
     print("\n[로그] 재그룹화된 라벨 종류 및 개수:")
     regrouped_labels_df.groupBy("label").count().show(truncate=False)
 
+    print("\n[최적화] 데이터 파티션 재분배 중...")
+    num_partitions = 200 
+    trajectory_df = trajectory_df.repartition(num_partitions, "user_id")
+
     print("1단계 3/4: 운동학적 특징 계산 중...")
     kinematics_df = calculate_kinematics(trajectory_df).dropna()
 
@@ -239,7 +245,6 @@ def process_data(spark, data_path):
     features_df = features_df.withColumn("window_center", (col("window.start").cast("long") + col("window.end").cast("long")) / 2)
     features_df = features_df.withColumn("window_center", col("window_center").cast("timestamp"))
 
-    # 재그룹화된 regrouped_labels_df를 사용하여 조인합니다.
     labeled_features = features_df.join(regrouped_labels_df,
         (features_df.user_id == regrouped_labels_df.user_id) & \
         (features_df.window_center >= regrouped_labels_df.start_time) & (features_df.window_center <= regrouped_labels_df.end_time),
@@ -255,6 +260,20 @@ def train_model(spark, feature_df):
     (training_data, test_data) = feature_df.randomSplit([0.8, 0.2], seed=42)
     print(f"훈련 데이터셋 크기: {training_data.count()}, 테스트 데이터셋 크기: {test_data.count()}")
 
+    # --- [데이터 불균형 해소] 클래스 가중치 계산 ---
+    print("\n[처리] 클래스 가중치 계산 중...")
+    label_counts = training_data.groupBy("label").count().collect()
+    total_samples = training_data.count()
+    num_classes = len(label_counts)
+    
+    # 가중치 계산: (전체 샘플 수) / (클래스 수 * 해당 클래스의 샘플 수)
+    weights = {row['label']: total_samples / (num_classes * row['count']) for row in label_counts}
+    print(f"계산된 가중치: {weights}")
+
+    # 훈련 데이터에 가중치 컬럼 추가
+    add_weight_udf = udf(lambda label: weights.get(label, 1.0), DoubleType())
+    training_data_with_weights = training_data.withColumn("weight", add_weight_udf(col("label")))
+
     print("\n[로그] 실제 훈련에 사용될 데이터의 라벨 종류 및 개수:")
     training_data.groupBy("label").count().show(truncate=False)
 
@@ -263,12 +282,12 @@ def train_model(spark, feature_df):
 
     label_indexer = StringIndexer(inputCol="label", outputCol="indexedLabel").setHandleInvalid("keep")
     assembler = VectorAssembler(inputCols=feature_cols, outputCol="features")
-    rf = RandomForestClassifier(labelCol="indexedLabel", featuresCol="features", numTrees=100, seed=42)
+    rf = RandomForestClassifier(labelCol="indexedLabel", featuresCol="features", numTrees=100, seed=42, weightCol="weight")
     
     pipeline = Pipeline(stages=[label_indexer, assembler, rf])
 
     print("2단계 3/4: 모델 훈련 중...")
-    model = pipeline.fit(training_data)
+    model = pipeline.fit(training_data_with_weights)
 
     print(f"2단계 4/4: 훈련된 모델 저장 중... 경로: {MODEL_OUTPUT_PATH}")
     model.write().overwrite().save(MODEL_OUTPUT_PATH)
