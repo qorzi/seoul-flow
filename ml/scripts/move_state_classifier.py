@@ -159,10 +159,14 @@ def create_features_from_windows(df):
         percentile_approx("speed", 0.75).alias("p75_speed"),
         percentile_approx("speed", 0.95).alias("p95_speed"),
         avg("accel").alias("avg_accel"),
+        spark_max("accel").alias("max_accel"),
         stddev("accel").alias("stddev_accel"),
+        avg("jerk").alias("avg_jerk"),
+        spark_max("jerk").alias("max_jerk"),
         stddev("jerk").alias("stddev_jerk"),
         (count(when(col("speed") < 0.5, 1)) / count("*")).alias("stop_rate"),
         avg("bearing_rate").alias("avg_bearing_rate"),
+        stddev("bearing_rate").alias("stddev_bearing_rate"),
         (count(when(abs(col("bearing_rate")) > 15, 1)) / count("*")).alias("hcr_rate"),
         sum("distance").alias("total_distance")
     ).na.fill(0)
@@ -196,8 +200,8 @@ def create_features_from_windows(df):
 
     return features_df.select(
         "user_id", "window", "avg_speed", "max_speed", "stddev_speed", "p75_speed", "p95_speed",
-        "avg_accel", "stddev_accel", "stddev_jerk", "stop_rate", "avg_bearing_rate", "hcr_rate",
-        "total_distance", "straightness_index"
+        "avg_accel", "max_accel", "stddev_accel", "avg_jerk", "max_jerk", "stddev_jerk", "stop_rate",
+        "avg_bearing_rate", "stddev_bearing_rate", "hcr_rate", "total_distance", "straightness_index"
     )
 
 def process_data(spark, data_path):
