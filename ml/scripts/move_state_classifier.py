@@ -14,6 +14,7 @@ from pyspark.ml import Pipeline
 from pyspark.ml.feature import StringIndexer, VectorAssembler
 from pyspark.ml.classification import RandomForestClassifier
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
+from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
 
 # --- 데이터 다운로드 스크립트 임포트 ---
 # download_geolife.py 스크립트를 찾을 수 있도록 경로 추가
@@ -255,20 +256,19 @@ def process_data(spark, data_path):
     return labeled_features
 
 def train_model(spark, feature_df):
-    """랜덤 포레스트 모델을 훈련하고 저장합니다."""
+    """ 랜덤 포레스트 모델의 하이퍼파라미터를 튜닝하고 최적 모델을 훈련/저장합니다."""
     print("2단계 1/4: 데이터 분할 중 (훈련:테스트 = 8:2)...")
     (training_data, test_data) = feature_df.randomSplit([0.8, 0.2], seed=42)
     print(f"훈련 데이터셋 크기: {training_data.count()}, 테스트 데이터셋 크기: {test_data.count()}")
-
+    
     # --- [데이터 불균형 해소] 클래스 가중치 계산 ---
     print("\n[처리] 클래스 가중치 계산 중...")
     label_counts = training_data.groupBy("label").count().collect()
     total_samples = training_data.count()
     num_classes = len(label_counts)
-    
+
     # 가중치 계산: (전체 샘플 수) / (클래스 수 * 해당 클래스의 샘플 수)
     weights = {row['label']: total_samples / (num_classes * row['count']) for row in label_counts}
-    print(f"계산된 가중치: {weights}")
 
     # 훈련 데이터에 가중치 컬럼 추가
     add_weight_udf = udf(lambda label: weights.get(label, 1.0), DoubleType())
@@ -276,20 +276,44 @@ def train_model(spark, feature_df):
 
     print("\n[로그] 실제 훈련에 사용될 데이터의 라벨 종류 및 개수:")
     training_data.groupBy("label").count().show(truncate=False)
-
-    print("2단계 2/4: 머신러닝 파이프라인 구성 중...")
-    feature_cols = [c for c in feature_df.columns if c not in ["user_id", "window", "label"]]
-
+    
+    print("2단계 2/4: 머신러닝 파이프라인 및 하이퍼파라미터 그리드 구성 중...")
+    # 파이프라인 구성
     label_indexer = StringIndexer(inputCol="label", outputCol="indexedLabel").setHandleInvalid("keep")
-    assembler = VectorAssembler(inputCols=feature_cols, outputCol="features")
-    rf = RandomForestClassifier(labelCol="indexedLabel", featuresCol="features", numTrees=100, seed=42, weightCol="weight")
+    assembler = VectorAssembler(inputCols=[c for c in feature_df.columns if c not in ["user_id", "window", "label"]], outputCol="features")
+    # 튜닝할 모델 객체 생성 (값은 여기서 지정하지 않음)
+    rf = RandomForestClassifier(labelCol="indexedLabel", featuresCol="features", seed=42, weightCol="weight")
     
     pipeline = Pipeline(stages=[label_indexer, assembler, rf])
 
-    print("2단계 3/4: 모델 훈련 중...")
-    model = pipeline.fit(training_data_with_weights)
+    # --- [하이퍼파라미터 튜닝] 파라미터 그리드 생성 ---
+    paramGrid = ParamGridBuilder() \
+        .addGrid(rf.numTrees, [100, 150]) \
+        .addGrid(rf.maxDepth, [10, 15]) \
+        .build()
 
-    print(f"2단계 4/4: 훈련된 모델 저장 중... 경로: {MODEL_OUTPUT_PATH}")
+    # --- [하이퍼파라미터 튜닝] 교차 검증 설정 ---
+    # 평가지표로 F1 Score를 사용하여 모델을 선택
+    evaluator = MulticlassClassificationEvaluator(labelCol="indexedLabel", predictionCol="prediction", metricName="f1")
+
+    crossval = CrossValidator(estimator=pipeline,
+                              estimatorParamMaps=paramGrid,
+                              evaluator=evaluator,
+                              numFolds=3) # 데이터를 3조각으로 나누어 교차 검증
+
+    print("2단계 3/4: 교차 검증을 통한 모델 튜닝 및 훈련 중... (시간이 오래 걸릴 수 있습니다)")
+    # 훈련 데이터로 교차 검증 수행
+    cvModel = crossval.fit(training_data_with_weights)
+
+    # 최적 모델 추출
+    model = cvModel.bestModel
+
+    print("\n[결과] 최적 하이퍼파라미터:")
+    best_rf_model = model.stages[-1]
+    print(f" - numTrees: {best_rf_model.getNumTrees}")
+    print(f" - maxDepth: {best_rf_model.getMaxDepth()}")
+
+    print(f"\n2단계 4/4: 훈련된 최적 모델 저장 중... 경로: {MODEL_OUTPUT_PATH}")
     model.write().overwrite().save(MODEL_OUTPUT_PATH)
     
     return model, test_data
